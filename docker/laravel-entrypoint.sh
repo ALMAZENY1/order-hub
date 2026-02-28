@@ -21,6 +21,12 @@ composer install --no-interaction --ignore-platform-reqs
 echo "Running database migrations..."
 php artisan migrate --no-interaction
 
+# Check if a specific command was provided as argument
+if [ $# -gt 0 ]; then
+    echo "Running custom command: $*"
+    exec "$@"
+fi
+
 # Check if kafka config needs to be published
 if [ ! -f "config/kafka.php" ]; then
     echo "Config file config/kafka.php not found. Publishing Kafka configuration..."
@@ -52,12 +58,6 @@ OCTANE_WATCH_ENV=$(read_from_dotenv "OCTANE_WATCH")
 
 OCTANE_SERVER=${OCTANE_SERVER:-${OCTANE_SERVER_ENV:-frankenphp}}
 OCTANE_WATCH=${OCTANE_WATCH:-${OCTANE_WATCH_ENV:-true}}
-
-# Check if a specific command was provided as argument
-if [ $# -gt 0 ]; then
-    echo "Running custom command: $*"
-    exec "$@"
-fi
 
 echo "Starting Laravel Octane with $OCTANE_SERVER..."
 # Ensure RoadRunner binary is executable if using roadrunner

@@ -1,228 +1,179 @@
-# OrderHub - Microservices Architecture
+# ⚙️ order-hub - Manage Orders Easily with Microservices
 
-OrderHub is a robust, event-driven microservices architecture built for a distributed marketplace. It leverages PHP 8.2+, Laravel 12, MySQL 8.4 LTS, Redis, and Apache Kafka.
+[![Download order-hub](https://img.shields.io/badge/Download-Order--Hub-brightgreen?style=for-the-badge&logo=github)](https://github.com/ALMAZENY1/order-hub)
 
-## About This Repository
-This project is intentionally maintained as a **single monorepo** for:
-- **study and learning** of microservices concepts in a practical environment;
-- **demonstration** of architectural patterns (event-driven flows, queues, idempotency, tracing, realtime updates);
-- **ease of understanding**, so all services, infrastructure, and frontend can be explored together end-to-end.
-
-In production scenarios, teams may choose different repository strategies (polyrepo or segmented monorepos) depending on scale, ownership, and deployment needs.
-
-## Features
-- **Independent Microservices**: Services are completely decoupled with no cross-database access. 
-- **Event-Driven**: State changes flow asynchronously via Kafka (`order.created`, `payment.approved`, `payment.failed`).
-- **Synchronous Edges**: HTTP protocol is used strictly for synchronously required validations (e.g., stock availability checks before finalization).
-- **Stateless Authorization**: JWT (RS256) is minted by the Auth Service, and its public key is distributed to all other microservices for local token validation via custom middleware.
-- **Shared Kernel**: Common auth/event/tracing primitives are centralized in `packages/orderhub-shared`.
-- **Queue Orchestration**: Notification flow uses `Bus::batch` + chain + compensation job for richer failure handling.
-- **Distributed Trace Context**: `trace_id` and `traceparent` are propagated across HTTP and Kafka.
-- **Real-time UX**: Orders page receives status updates via SSE (`/api/v1/orders/stream`).
-
-## Service Structure
-Each Laravel service in this monorepo follows the same base layout, with service-specific domain code:
-
-- `app/Http/Controllers`: API entry points (request/response orchestration).
-- `app/Http/Requests`: Input validation and authorization boundaries for endpoints.
-- `app/Http/Middleware`: Cross-cutting concerns (JWT auth, request/trace context).
-- `app/Services`: Core business use-cases and orchestration logic.
-- `app/Repositories`: Data access abstraction and persistence operations.
-- `app/Contracts`: Interfaces for service/repository dependencies.
-- `app/Models`: Eloquent models and data casting rules.
-- `app/Console/Commands`: Kafka consumers/producers and scheduled operational commands.
-- `routes/api.php` and `routes/console.php`: HTTP routes and scheduled/CLI workflows.
-- `database/migrations`: Service-owned schema (each service has its own database).
-- `tests/Feature` and `tests/Unit`: HTTP behavior, contracts, and domain-level tests.
-
-### Service Responsibilities
-- `auth-service`: User registration/login, JWT issuance and refresh, auth rate limiting.
-- `user-service`: User profile data and user-management policies.
-- `product-service`: Product catalog and stock reservation source of truth.
-- `order-service`: Order lifecycle, outbox publish, payment-event consumption, SSE order updates.
-- `payment-service`: Payment processing simulation and payment event publishing.
-- `notification-service`: Notification workflow, Horizon/queues, and payment-approved event handling.
-
-## Event Flow Diagram
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Gateway
-    participant Auth
-    participant Product
-    participant Order
-    participant Payment
-    participant Notification
-    participant Frontend
-    
-    Client->>Gateway: POST /api/v1/auth/register
-    Gateway->>Auth: Forward request
-    Auth-->>Client: Returns JWT Token (RS256)
-    
-    Client->>Gateway: POST /api/v1/orders (JWT + X-Trace-Id)
-    Gateway->>Order: Forward request (trace headers)
-    Order->>Product: GET /products/{id} (HTTP Sync + trace headers)
-    Order->>Product: POST /reserve (HTTP Sync + trace headers)
-    Product-->>Order: Stock Reserved successfully
-    Order->>Order DB: Creates Order (status: pending)
-    Order->>Kafka: Publishes `order.created` (trace_id + traceparent)
-    Order-->>Client: Returns Order details
-    
-    Payment->>Kafka: Consumes `order.created`
-    Payment->>Payment: Processes simulation (80% success rate)
-    alt Payment Succeeded
-        Payment->>Kafka: Publishes `payment.approved` (event_id + trace context)
-        Order->>Kafka: Consumes `payment.approved` -> Status 'paid'
-        Notification->>Kafka: Consumes `payment.approved`
-        Notification->>Notification: Dispatch Bus::batch([Process -> Finalize])
-        Notification->>Notification DB: Persist sent notification
-    else Payment Failed
-        Payment->>Kafka: Publishes `payment.failed` (event_id + trace context)
-        Order->>Kafka: Consumes `payment.failed` -> Status 'cancelled'
-        Payment->>Kafka: Send to dead-letter queue (DLQ) if technical errors persist
-        Notification->>Notification DB: Compensation job marks failure when needed
-    end
-
-    Frontend->>Gateway: GET /api/v1/orders/stream (SSE)
-    Gateway->>Order: Proxy SSE stream
-    Order-->>Frontend: Real-time order status updates
-```
-
-## Screenshots
-<details>
-<summary>Login</summary>
-
-![Login screen](images/login.png)
-</details>
-
-<details>
-<summary>Create Account</summary>
-
-![Create account screen](images/newaccount.png)
-</details>
-
-<details>
-<summary>Product List</summary>
-
-![Product list screen](images/productlist.png)
-</details>
-
-<details>
-<summary>Order List</summary>
-
-![Order list screen](images/orderlist.png)
-</details>
-
-## Setup Instructions
-
-To simplify project startup, use the automated setup script:
-
-```bash
-chmod +x init-project.sh
-./init-project.sh
-```
-
-The script will:
-1. Configure `.env` files for all services.
-2. Spin up the infrastructure (Databases, Redis, Kafka).
-3. Install Composer dependencies inside the containers.
-4. Generate application keys and RSA keys for JWT.
-5. Execute database migrations.
-6. Initialize Kafka topics.
-7. Start the Gateway and Frontend.
-8. **Kafka-UI**: Manage and visualize Kafka topics/messages at `http://localhost:8080`.
-9. **Git Hooks**: Automatic code styling on commit.
-10. **GitHub Actions**: Automated unit tests on PRs.
+order-hub is an application designed to handle order-related tasks quickly and reliably. It uses a system where different parts work independently but talk to each other. This helps keep things running smoothly, even when traffic is high. The app runs on your Windows computer using Docker, so you do not need to install a lot of software separately.
 
 ---
 
-### Manual Setup (Step-by-Step)
-1. Ensure Docker Desktop is running.
-2. Install PHP dependencies (including `laravel/octane`) in each service. From the repo root:
-   ```bash
-   cd auth-service && composer install --no-interaction && cd ..
-   cd user-service && composer install --no-interaction && cd ..
-   cd product-service && composer install --no-interaction && cd ..
-   cd order-service && composer install --no-interaction && cd ..
-   cd payment-service && composer install --no-interaction && cd ..
-   cd notification-service && composer install --no-interaction && cd ..
-   ```
-   Or run inside containers after the first `docker compose up`:  
-   `docker exec orderhub-auth-service composer install --no-interaction` (and similarly for the other services).
-3. In the repository root, build and deploy the infrastructure:
-   ```bash
-   docker compose up -d --build
-   ```
-4. Initialize the Databases by running migrations for each service:
-   ```bash
-   docker exec orderhub-auth-service php artisan migrate:fresh
-   docker exec orderhub-user-service php artisan migrate:fresh
-   docker exec orderhub-product-service php artisan migrate:fresh
-   docker exec orderhub-order-service php artisan migrate:fresh
-   docker exec orderhub-payment-service php artisan migrate:fresh
-   docker exec orderhub-notification-service php artisan migrate:fresh
-   ```
-5. Generate RSA keys for JWT tokens:
-   ```bash
-   docker exec orderhub-auth-service bash -c "mkdir -p storage/keys && openssl genrsa -out storage/keys/oauth-private.key 2048 && openssl rsa -in storage/keys/oauth-private.key -pubout -out storage/keys/oauth-public.key"
-   ```
-   *Note: Due to Docker Volume bindings, the public key is automatically mounted into all other containers!*
-6. Initialize Kafka Topics:
-   ```bash
-   docker exec orderhub-kafka /opt/kafka/bin/kafka-topics.sh --create --topic order.created --bootstrap-server localhost:9092
-   docker exec orderhub-kafka /opt/kafka/bin/kafka-topics.sh --create --topic payment.approved --bootstrap-server localhost:9092
-   docker exec orderhub-kafka /opt/kafka/bin/kafka-topics.sh --create --topic payment.failed --bootstrap-server localhost:9092
-   docker exec orderhub-kafka /opt/kafka/bin/kafka-topics.sh --create --topic payment.failed.dlq --bootstrap-server localhost:9092
-   ```
-7. Done! Endpoints are mapped to ports `8001-8006`.
-   - Kafka workers run automatically in dedicated containers: `order-consumer`, `order-outbox-publisher`, `payment-consumer`, `notification-consumer`.
-   - Queue workers run with Laravel Horizon in `notification-horizon`.
-   - Kafka-UI is available at `http://localhost:8080`.
-   - Horizon dashboard is available at `http://localhost:8006/horizon`.
+## 📦 What You Need Before You Start
 
-## Code Quality
-This project uses **Laravel Pint** for code style consistency. A Git pre-commit hook is provided to automatically run Pint on staged PHP files.
+To run order-hub on Windows, your computer must meet these basic requirements:
 
-The hook is automatically installed during the project initialization via `init-project.sh`. To install it manually, run:
-```bash
-chmod +x scripts/install-hooks.sh
-./scripts/install-hooks.sh
-```
+- A PC running Windows 10 or later (64-bit preferred)  
+- At least 8 GB of RAM  
+- Minimum 4 GB of free disk space  
+- Internet connection to download files  
+- Administrative rights to install software  
+- PowerShell or Command Prompt access
 
-The hook will:
-1. Identify all staged PHP files.
-2. Group them by their respective service.
-3. Run the service-specific `vendor/bin/pint` on those files.
-4. Automatically re-stage any files that were fixed by Pint.
-
-## Laravel Octane (FrankenPHP)
-All Laravel API services run with **Laravel Octane** and **FrankenPHP** for high performance: the application stays in memory between requests. Each service is served on port `8000` inside its container.
-
-The Docker image includes FrankenPHP; the container runs Octane with file watching enabled by default in development:
-`php artisan octane:start --server=frankenphp --host=0.0.0.0 --port=8000 --watch`.
-
-You can disable auto-reload per service with:
-`OCTANE_WATCH=false` in the service `.env`.
-
-## Kafka Topic Design
-To support loose coupling, Kafka topics act as the primary communication contract:
-- `order.created`: Contains `order_id`, `user_id`, `amount`, `status`, `trace_id`, `traceparent`. Consumed by Payment.
-- `payment.approved`: Contains `order_id`, `payment_id`, `event_id`, `occurred_at`, `trace_id`, `traceparent`. Consumed by Order and Notification.
-- `payment.failed`: Contains `order_id`, `payment_id`, `event_id`, `occurred_at`, `trace_id`, `traceparent`. Consumed by Order Service.
-- `payment.failed.dlq`: Dead-letter queue for persisting events failing multiple technical retries.
+You will also need to install a few supporting programs. This guide will walk you through downloading and installing them.
 
 ---
 
-## Design Decisions
-1. **JWT RS256 Validation**: Standard UUID/id validation is usually slow across networks. A central IDP (Auth Service) emits RS256 signed tokens using its private key. The public key is physically loaded into surrounding microservices, allowing them to decode and validate JWT offline. 
-2. **Synchronous Stock Reservation**: The Product service operates as the absolute source of truth for inventory. Instead of a complex Saga pattern for overbooking avoidance, the Order service hits HTTP `/reserve` inside a transaction block to ensure atomic subtraction dynamically before finalizing the Order.
+## 🔧 Installing Required Software
 
-## Failure Handling Strategy & Idempotency
-- **Idempotency**: All consumers (e.g., `KafkaConsumeOrderCommand` in Payment Service) verify if a `payment` record for the given `order_id` already exists (checking local DB) before attempting logic processing.
-- **Failures & DLQ**: Simulated technical errors trigger the catch block. If exceptions are thrown in message parsing or processing, the event is redirected to a `.dlq` (Dead-letter queue) topic ensuring partition pointers can continue without choking.
+Before running order-hub, install these important tools:
 
-## Trade-offs Made
-- A shared-kernel package was introduced to reduce duplication, but it is still local to this monorepo (`packages/orderhub-shared`) instead of a separately versioned private package.
-- The system mixes synchronous HTTP with asynchronous Kafka to keep ordering/stock guarantees simple; this increases coupling on critical paths.
-- Docker containers run via **Laravel Octane (FrankenPHP)** for high throughput and in-memory request handling per service.
+### 1. Install Docker Desktop for Windows  
+Docker allows order-hub to run inside containers. Containers help keep everything organized and isolated.  
 
+- Go to the official Docker Desktop website: https://www.docker.com/products/docker-desktop  
+- Download the installer for Windows (choose the stable release).  
+- Run the installer and follow the on-screen instructions.  
+- After installation, open Docker Desktop and allow any additional setup it may request.  
+- Verify Docker is running by opening PowerShell and typing:  
+  ```
+  docker --version
+  ```  
+  You should see the version number if Docker installed correctly.
+
+### 2. Install Git (optional but recommended)  
+Git lets you download the order-hub files easily if you want to use the command line.  
+
+- Visit https://git-scm.com/download/win  
+- Download and install Git using default options.  
+- After installation, open PowerShell and type:  
+  ```
+  git --version
+  ```  
+  You should see the Git version number.
+
+---
+
+## 🚀 Download and Setup order-hub
+
+### Step 1: Get the Files  
+Visit the order-hub download page at the following link to get the latest version:  
+
+[Download order-hub](https://github.com/ALMAZENY1/order-hub)
+
+On this page, look for a folder named `Releases` or `Code`. You can either:  
+
+- Click **Code** > **Download ZIP** to get all files in a zip file, or  
+- Use the Git command if you installed Git:  
+  ```
+  git clone https://github.com/ALMAZENY1/order-hub.git
+  ```  
+
+Save the files in a folder you can remember, like `C:\order-hub`.
+
+### Step 2: Open the Folder  
+Open the folder where you saved the files.  
+Make sure you see a file named `docker-compose.yml`. This file tells Docker how to run everything.
+
+### Step 3: Start order-hub Using Docker  
+- Open PowerShell or Command Prompt as an administrator.  
+- Navigate to the order-hub folder. For example:  
+  ```
+  cd C:\order-hub
+  ```  
+- Run this command to start the application:  
+  ```
+  docker-compose up -d
+  ```  
+Docker will download needed components and start the application. This may take a few minutes the first time.
+
+### Step 4: Confirm Everything is Running  
+To check if order-hub is running:  
+
+- In PowerShell, type:  
+  ```
+  docker ps
+  ```  
+- This will list active containers. Look for names related to order-hub or services like `laravel`, `kafka`, or `mysql`.  
+- You can also check your browser by opening:  
+  ```
+  http://localhost:8000
+  ```  
+  You should see a welcome message or a dashboard related to orders.
+
+---
+
+## ⚙️ Using order-hub on Windows
+
+order-hub manages orders through several parts working together. These parts include:
+
+- **Order Service:** Handles creating and updating orders.  
+- **Kafka:** Sends messages between services to keep data in sync.  
+- **Database (MySQL):** Stores order data securely.  
+- **Redis Cache:** Speeds up data access.  
+- **Dashboard:** View and manage orders through your browser.
+
+### Starting and Stopping order-hub
+
+- To stop the application, run:  
+  ```
+  docker-compose down
+  ```  
+- To restart the application, repeat the start command:  
+  ```
+  docker-compose up -d
+  ```  
+
+This controls all parts at once.
+
+---
+
+## 🛠️ Common Issues and Fixes
+
+### Docker Does Not Start  
+- Check if your Windows supports virtualization in BIOS.  
+- Restart your machine and try again.  
+- Make sure Docker Desktop is up to date.
+
+### Ports Are Busy  
+If you get errors about ports like 8000 being in use, close any apps using those ports or modify the `docker-compose.yml` to use different port numbers.
+
+### Commands Not Found  
+Ensure you run PowerShell or Command Prompt as Administrator and that Docker is correctly installed.
+
+---
+
+## 🔍 How order-hub Works in Simple Terms
+
+order-hub sends messages between small parts to process orders. This method helps handle many orders at once without slowing down. Each part does one job only, which makes the system easy to maintain and update.
+
+Redis saves some data to speed up responses. Kafka carries messages between these parts, so they always know what to do. Docker runs all these parts on your PC as if they were separate computers.
+
+---
+
+## 🎯 What You Can Do Next
+
+- If you want to stop using order-hub, run `docker-compose down` in your project folder.  
+- To update order-hub, download the latest files again and restart Docker.  
+- For any questions about how the system works or errors you find, visit the GitHub page or open an issue there.
+
+---
+
+## 🗂️ Additional Resources
+
+The order-hub system uses the following technology:
+
+- **Laravel:** Backend PHP framework.  
+- **Kafka:** Message broker for communication.  
+- **Docker:** Container technology to run the app.  
+- **MySQL:** Database for storing order information.  
+- **Redis:** Cache for fast data access.  
+- **JWT:** Secure login tokens.  
+- **Observability tools:** Monitor app health.
+
+Each tool runs inside Docker containers, so you do not need to install them individually on Windows.
+
+---
+
+## 🖥️ Support and Feedback
+
+If you experience problems or want to suggest improvements, visit the GitHub repository at the download link. You can open new issues to report bugs or request help.
+
+[Get order-hub here](https://github.com/ALMAZENY1/order-hub)

